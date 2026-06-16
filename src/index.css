@@ -127,6 +127,11 @@ body {
 }
 .spin-slow { animation: spin-slow 2.5s linear infinite; }
 
+@keyframes overlay-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* 스크롤바 */
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: var(--c-bg); }
