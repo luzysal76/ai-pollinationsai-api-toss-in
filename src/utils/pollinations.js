@@ -3,117 +3,143 @@
 
 const BASE_URL = 'https://image.pollinations.ai/prompt';
 
-// 일기 내용에서 이미지 프롬프트 생성
-export function createImagePrompt(diaryText, mood = '') {
-  const moodMap = {
-    happy: 'bright cheerful warm colors, sunny atmosphere',
-    sad: 'soft blue gentle melancholic atmosphere',
-    excited: 'vibrant energetic colorful atmosphere',
-    calm: 'peaceful serene soft pastel colors',
-    angry: 'dramatic strong intense atmosphere',
-    neutral: 'soft warm natural colors',
-  };
+/* ── 그림 스타일 정의 ── */
+export const ART_STYLES = [
+  {
+    key:     'watercolor',
+    label:   '수채화',
+    emoji:   '🎨',
+    prompt:  'watercolor painting, soft watercolor illustration, delicate watercolor style',
+  },
+  {
+    key:     'crayon',
+    label:   '크레파스',
+    emoji:   '🖍️',
+    prompt:  'crayon drawing, childlike crayon art style, colorful crayon illustration',
+  },
+  {
+    key:     'oilpaint',
+    label:   '유화',
+    emoji:   '🖼️',
+    prompt:  'oil painting, thick brushstrokes oil painting, impressionist oil art',
+  },
+  {
+    key:     'pencil',
+    label:   '연필 스케치',
+    emoji:   '✏️',
+    prompt:  'pencil sketch, hand-drawn pencil illustration, detailed pencil art',
+  },
+  {
+    key:     'inkwash',
+    label:   '수묵화',
+    emoji:   '🖌️',
+    prompt:  'ink wash painting, Korean traditional ink art, sumi-e style',
+  },
+  {
+    key:     'storybook',
+    label:   '동화책',
+    emoji:   '📚',
+    prompt:  "children's book illustration, cute storybook art, fairy tale illustration style",
+  },
+  {
+    key:     'pixel',
+    label:   '픽셀아트',
+    emoji:   '🕹️',
+    prompt:  'pixel art, 16-bit pixel illustration, retro pixel game style',
+  },
+  {
+    key:     'anime',
+    label:   '애니메이션',
+    emoji:   '✨',
+    prompt:  'anime style illustration, Japanese anime art, cute anime character',
+  },
+];
 
-  const moodStyle = moodMap[mood] || moodMap.neutral;
+/* 기본 스타일 키 */
+export const DEFAULT_STYLE = 'watercolor';
 
-  // 일기 내용을 짧게 요약해서 프롬프트로 변환
-  const cleanText = diaryText.slice(0, 200).replace(/[^a-zA-Z0-9가-힣\s.,]/g, ' ');
+/* 스타일 키 → 객체 빠른 조회 */
+export const ART_STYLE_MAP = Object.fromEntries(
+  ART_STYLES.map(s => [s.key, s])
+);
 
-  return `cute watercolor illustration, kawaii style, diary scene, ${cleanText}, ${moodStyle}, soft pastel colors, hand-drawn style, adorable characters, warm cozy feeling, no text, no words`;
-}
-
-// 프롬프트 한국어를 영어로 변환하는 키워드 매핑
-const koreanToEnglish = {
-  '오늘': 'today',
-  '학교': 'school',
-  '친구': 'friend',
-  '밥': 'meal rice',
-  '점심': 'lunch',
-  '저녁': 'dinner',
-  '아침': 'morning breakfast',
-  '집': 'home house',
-  '공원': 'park',
-  '놀이': 'playing',
-  '게임': 'game',
-  '산책': 'walk',
-  '운동': 'exercise',
-  '독서': 'reading book',
-  '영화': 'movie',
-  '음악': 'music',
-  '가족': 'family',
-  '엄마': 'mom mother',
-  '아빠': 'dad father',
-  '날씨': 'weather',
-  '비': 'rain',
-  '눈': 'snow',
-  '햇빛': 'sunshine',
-  '행복': 'happy happiness',
-  '슬픔': 'sad sadness',
-  '피곤': 'tired',
-  '기쁨': 'joy',
-  '고양이': 'cat',
-  '강아지': 'dog',
-  '꽃': 'flower',
-  '바다': 'ocean sea',
-  '산': 'mountain',
-  '여행': 'travel',
-  '쇼핑': 'shopping',
-  '카페': 'cafe coffee shop',
-  '생일': 'birthday',
-  '파티': 'party',
+/* ── 한국어 → 영어 키워드 매핑 ── */
+const KO_TO_EN = {
+  '오늘': 'today', '학교': 'school', '친구': 'friend',
+  '밥': 'meal', '점심': 'lunch', '저녁': 'dinner', '아침': 'breakfast',
+  '집': 'home', '공원': 'park', '놀이': 'playing', '게임': 'game',
+  '산책': 'walk', '운동': 'exercise', '독서': 'reading', '영화': 'movie',
+  '음악': 'music', '가족': 'family', '엄마': 'mom', '아빠': 'dad',
+  '날씨': 'weather', '비': 'rain', '눈': 'snow', '햇빛': 'sunshine',
+  '행복': 'happiness', '슬픔': 'sadness', '피곤': 'tired', '기쁨': 'joy',
+  '고양이': 'cat', '강아지': 'dog', '꽃': 'flower', '바다': 'sea',
+  '산': 'mountain', '여행': 'travel', '쇼핑': 'shopping',
+  '카페': 'cafe', '생일': 'birthday', '파티': 'party',
 };
 
-export function translateKorean(text) {
+function translateKorean(text) {
   let result = text;
-  for (const [korean, english] of Object.entries(koreanToEnglish)) {
-    result = result.replace(new RegExp(korean, 'g'), english);
+  for (const [ko, en] of Object.entries(KO_TO_EN)) {
+    result = result.replace(new RegExp(ko, 'g'), en);
   }
   return result;
 }
 
-// Pollinations.ai URL 생성 (nologo 파라미터 제거 — 현재 유료)
-export function getImageUrl(prompt, options = {}) {
-  const {
-    width = 512,
-    height = 512,
-    seed,
-    model = 'flux',
-  } = options;
+/* ── 기분 → 분위기 키워드 ── */
+const MOOD_KEYWORDS = {
+  happy:   'bright cheerful warm atmosphere',
+  excited: 'vibrant energetic colorful atmosphere',
+  calm:    'peaceful serene soft pastel atmosphere',
+  sad:     'gentle soft melancholic atmosphere',
+  angry:   'dramatic intense atmosphere',
+  neutral: 'soft warm natural atmosphere',
+};
 
-  const encodedPrompt = encodeURIComponent(prompt);
-  const params = new URLSearchParams({
-    width: width.toString(),
-    height: height.toString(),
-    model,
-  });
+/* ── 날씨 → 배경 키워드 ── */
+const WEATHER_KEYWORDS = {
+  sunny:  'sunny bright day',
+  cloudy: 'cloudy overcast day',
+  rainy:  'rainy day with rain drops',
+  snowy:  'snowy winter day',
+  windy:  'windy breezy day',
+};
 
-  // seed가 있을 때만 추가
-  if (seed !== undefined && seed !== null) {
-    params.set('seed', seed.toString());
-  }
+/* ── 프롬프트 빌더 ── */
+export function buildPrompt(diaryText, { mood = 'neutral', weather = 'sunny', artStyle = DEFAULT_STYLE } = {}) {
+  const styleObj  = ART_STYLE_MAP[artStyle] || ART_STYLE_MAP[DEFAULT_STYLE];
+  const moodKw    = MOOD_KEYWORDS[mood]    || MOOD_KEYWORDS.neutral;
+  const weatherKw = WEATHER_KEYWORDS[weather] || WEATHER_KEYWORDS.sunny;
 
-  return `${BASE_URL}/${encodedPrompt}?${params.toString()}`;
+  // 일기 내용 전처리 (한→영, 200자 제한, 특수문자 제거)
+  const cleanText = translateKorean(diaryText)
+    .slice(0, 200)
+    .replace(/[^a-zA-Z0-9가-힣\s.,]/g, ' ')
+    .trim();
+
+  return [
+    cleanText,
+    weatherKw,
+    moodKw,
+    styleObj.prompt,
+    'cute illustration, bright colors, high quality, no text, no words',
+  ].join(', ');
 }
 
-// 일기 내용으로 이미지 URL 직접 생성
-export function generateDiaryImageUrl(diaryText, mood = '', seed = null) {
-  const translatedText = translateKorean(diaryText);
-  const prompt = createImagePrompt(translatedText, mood);
-  const finalSeed = seed || Math.floor(Math.random() * 999999);
+/* ── URL 빌더 ── */
+export function getImageUrl(prompt, seed) {
+  const params = new URLSearchParams({ width: '512', height: '512', model: 'flux' });
+  if (seed != null) params.set('seed', String(seed));
+  return `${BASE_URL}/${encodeURIComponent(prompt)}?${params}`;
+}
 
+/* ── 메인 진입점 ── */
+export function generateDiaryImageUrl(diaryText, mood = 'neutral', weather = 'sunny', artStyle = DEFAULT_STYLE, seed = null) {
+  const prompt    = buildPrompt(diaryText, { mood, weather, artStyle });
+  const finalSeed = seed ?? Math.floor(Math.random() * 999999);
   return {
-    url: getImageUrl(prompt, { width: 512, height: 512, seed: finalSeed }),
+    url:      getImageUrl(prompt, finalSeed),
     prompt,
-    seed: finalSeed,
+    seed:     finalSeed,
+    artStyle,
   };
-}
-
-// 이미지 로드 확인 (Promise)
-export function loadImage(url) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(url);
-    img.onerror = () => reject(new Error('이미지 로드 실패'));
-    img.src = url;
-  });
 }

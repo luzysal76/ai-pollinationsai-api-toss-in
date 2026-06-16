@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Trash2, X, Sparkles, Calendar, Plus } from 'lucide-react';
 import { getDiaries, deleteDiary } from '../utils/storage';
+import { ART_STYLE_MAP } from '../utils/pollinations';
 
 const MOOD_EMOJI = {
   happy: '😊', excited: '🎉', calm: '😌',
@@ -17,9 +18,24 @@ function formatDate(iso) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/* ── 스타일 배지 공통 컴포넌트 ── */
+function StyleBadge({ artStyle, className = '' }) {
+  const s = ART_STYLE_MAP[artStyle];
+  if (!s) return null;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${className}`}
+      style={{ background: '#FFF3D0', color: '#FFB800' }}
+    >
+      {s.emoji} {s.label}
+    </span>
+  );
+}
+
 /* ── 상세 바텀시트 ── */
 function DiarySheet({ diary, onClose, onDelete }) {
   const [confirmDel, setConfirmDel] = useState(false);
+  const styleObj = ART_STYLE_MAP[diary.artStyle];
 
   const doDelete = () => {
     if (confirmDel) {
@@ -42,7 +58,7 @@ function DiarySheet({ diary, onClose, onDelete }) {
         style={{ background: '#FFF8F0', maxHeight: '90vh' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* 드래그 핸들 */}
+        {/* 핸들 */}
         <div className="flex justify-center pt-3 pb-2">
           <div className="w-10 h-1 rounded-full" style={{ background: '#DDD' }} />
         </div>
@@ -51,12 +67,15 @@ function DiarySheet({ diary, onClose, onDelete }) {
         <div className="px-5 py-3 flex items-start justify-between border-b" style={{ borderColor: '#F0E8D8' }}>
           <div className="flex-1 pr-3">
             <h2 className="font-bold text-[16px]" style={{ color: '#2D2D2D' }}>{diary.title}</h2>
-            <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: '#888' }}>
-              <Calendar size={10} />
-              {formatDate(diary.date || diary.createdAt)}
-              <span>{WEATHER_EMOJI[diary.weather] || ''}</span>
-              <span>{MOOD_EMOJI[diary.mood] || ''}</span>
-            </p>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              <span className="text-xs flex items-center gap-1" style={{ color: '#888' }}>
+                <Calendar size={10} />
+                {formatDate(diary.date || diary.createdAt)}
+              </span>
+              <span className="text-xs">{WEATHER_EMOJI[diary.weather] || ''}</span>
+              <span className="text-xs">{MOOD_EMOJI[diary.mood] || ''}</span>
+              {diary.artStyle && <StyleBadge artStyle={diary.artStyle} />}
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -74,14 +93,17 @@ function DiarySheet({ diary, onClose, onDelete }) {
               <img
                 src={diary.imageUrl}
                 alt="AI 그림"
-                className="w-full max-h-64 object-cover block"
+                className="w-full max-h-72 object-cover block"
               />
+              {/* AI + 스타일 배지 */}
               <div
                 className="absolute top-2 left-2 rounded-full px-2 py-0.5 flex items-center gap-1"
-                style={{ background: 'rgba(255,255,255,0.85)' }}
+                style={{ background: 'rgba(255,255,255,0.88)' }}
               >
                 <Sparkles size={10} style={{ color: '#FFB800' }} />
-                <span className="text-[10px] font-semibold" style={{ color: '#FFB800' }}>AI 그림</span>
+                <span className="text-[10px] font-semibold" style={{ color: '#FFB800' }}>
+                  {styleObj ? `${styleObj.emoji} ${styleObj.label}` : 'AI 그림'}
+                </span>
               </div>
             </div>
           ) : (
@@ -95,10 +117,7 @@ function DiarySheet({ diary, onClose, onDelete }) {
           )}
 
           {/* 일기 본문 */}
-          <div
-            className="rounded-2xl p-4 diary-lines"
-            style={{ border: '2px solid #F0E8D8' }}
-          >
+          <div className="rounded-2xl p-4 diary-lines" style={{ border: '2px solid #F0E8D8' }}>
             <p className="text-sm leading-8 whitespace-pre-wrap" style={{ color: '#2D2D2D' }}>
               {diary.text}
             </p>
@@ -108,11 +127,9 @@ function DiarySheet({ diary, onClose, onDelete }) {
           <button
             onClick={doDelete}
             className="w-full py-3 rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-            style={
-              confirmDel
-                ? { background: '#ef4444', color: 'white' }
-                : { background: '#F5EDD8', color: '#888' }
-            }
+            style={confirmDel
+              ? { background: '#ef4444', color: 'white' }
+              : { background: '#F5EDD8', color: '#888' }}
           >
             <Trash2 size={14} />
             {confirmDel ? '한 번 더 누르면 삭제됩니다' : '일기 삭제'}
@@ -127,6 +144,7 @@ function DiarySheet({ diary, onClose, onDelete }) {
 /* ── 갤러리 카드 ── */
 function DiaryCard({ diary, onClick }) {
   const [imgErr, setImgErr] = useState(false);
+  const styleObj = ART_STYLE_MAP[diary.artStyle];
 
   return (
     <button
@@ -135,10 +153,7 @@ function DiaryCard({ diary, onClick }) {
       style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
     >
       {/* 썸네일 */}
-      <div
-        className="w-full aspect-square relative overflow-hidden"
-        style={{ background: '#FFF3D0' }}
-      >
+      <div className="w-full aspect-square relative overflow-hidden" style={{ background: '#FFF3D0' }}>
         {diary.imageUrl && !imgErr ? (
           <img
             src={diary.imageUrl}
@@ -149,7 +164,7 @@ function DiaryCard({ diary, onClick }) {
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-4xl opacity-60">
-              {MOOD_EMOJI[diary.mood] || '📝'}
+              {styleObj?.emoji || MOOD_EMOJI[diary.mood] || '📝'}
             </span>
           </div>
         )}
@@ -167,10 +182,14 @@ function DiaryCard({ diary, onClick }) {
         <p className="text-xs font-semibold leading-snug line-clamp-1 mb-1" style={{ color: '#2D2D2D' }}>
           {diary.title}
         </p>
-        <p className="text-[10px] flex items-center gap-0.5 mb-1.5" style={{ color: '#aaa' }}>
-          <Calendar size={9} />
-          {formatDate(diary.date || diary.createdAt)}
-        </p>
+        <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+          <p className="text-[10px] flex items-center gap-0.5" style={{ color: '#aaa' }}>
+            <Calendar size={9} />
+            {formatDate(diary.date || diary.createdAt)}
+          </p>
+          {/* ← 스타일 배지 */}
+          {diary.artStyle && <StyleBadge artStyle={diary.artStyle} />}
+        </div>
         <p className="text-[11px] leading-relaxed line-clamp-2" style={{ color: '#888' }}>
           {diary.text}
         </p>
@@ -181,12 +200,11 @@ function DiaryCard({ diary, onClick }) {
 
 /* ── 갤러리 페이지 ── */
 export default function GalleryPage({ onNavigate }) {
-  const [diaries, setDiaries]  = useState(() => getDiaries());
+  const [diaries, setDiaries]   = useState(() => getDiaries());
   const [selected, setSelected] = useState(null);
 
   const refresh = () => setDiaries(getDiaries());
 
-  /* 빈 상태 */
   if (diaries.length === 0) {
     return (
       <div className="max-w-[430px] mx-auto px-4 py-20 flex flex-col items-center text-center animate-fade-in-up">
@@ -196,9 +214,7 @@ export default function GalleryPage({ onNavigate }) {
         >
           📖
         </div>
-        <h2 className="text-lg font-bold mb-2" style={{ color: '#2D2D2D' }}>
-          아직 일기가 없어요
-        </h2>
+        <h2 className="text-lg font-bold mb-2" style={{ color: '#2D2D2D' }}>아직 일기가 없어요</h2>
         <p className="text-sm mb-8" style={{ color: '#888' }}>
           오늘의 이야기를 기록하고<br />AI 그림으로 꾸며봐요!
         </p>
@@ -216,7 +232,6 @@ export default function GalleryPage({ onNavigate }) {
 
   return (
     <div className="max-w-[430px] mx-auto px-4 pb-8 pt-5 animate-fade-in-up">
-      {/* 헤더 */}
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="text-lg font-bold" style={{ color: '#2D2D2D' }}>내 그림일기</h2>
@@ -232,19 +247,12 @@ export default function GalleryPage({ onNavigate }) {
         </button>
       </div>
 
-      {/* 2열 그리드 */}
       <div className="grid grid-cols-2 gap-3">
-        {diaries.map((d, i) => (
-          <DiaryCard
-            key={d.id}
-            diary={d}
-            onClick={() => setSelected(d)}
-            style={{ animationDelay: `${i * 40}ms` }}
-          />
+        {diaries.map(d => (
+          <DiaryCard key={d.id} diary={d} onClick={() => setSelected(d)} />
         ))}
       </div>
 
-      {/* 바텀시트 */}
       {selected && (
         <DiarySheet
           diary={selected}

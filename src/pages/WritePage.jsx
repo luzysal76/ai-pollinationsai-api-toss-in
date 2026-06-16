@@ -1,15 +1,16 @@
 import { useState, useRef } from 'react';
 import { ChevronDown, Sparkles, Save, RefreshCw } from 'lucide-react';
 import MoodPicker from '../components/MoodPicker';
+import ArtStylePicker from '../components/ArtStylePicker';
 import { saveDiary } from '../utils/storage';
-import { generateDiaryImageUrl } from '../utils/pollinations';
+import { generateDiaryImageUrl, DEFAULT_STYLE, ART_STYLE_MAP } from '../utils/pollinations';
 
 const WEATHER = [
   { key: 'sunny',  emoji: '☀️',  label: '맑음' },
   { key: 'cloudy', emoji: '🌥️', label: '흐림' },
   { key: 'rainy',  emoji: '🌧️', label: '비' },
   { key: 'snowy',  emoji: '❄️',  label: '눈' },
-  { key: 'windy',  emoji: '💨', label: '바람' },
+  { key: 'windy',  emoji: '💨',  label: '바람' },
 ];
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -29,36 +30,38 @@ export default function WritePage({ onNavigate, onSaved }) {
   const [date, setDate]         = useState(today);
   const [weather, setWeather]   = useState('sunny');
   const [mood, setMood]         = useState('happy');
+  const [artStyle, setArtStyle] = useState(DEFAULT_STYLE);
   const [text, setText]         = useState('');
-  const [imageData, setImageData] = useState(null); // { url, prompt, seed }
+  const [imageData, setImageData] = useState(null);
   const [imgLoading, setImgLoading] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
   const dateInputRef = useRef(null);
 
-  /* ---------- 이미지 생성 ---------- */
-  const handleGenerate = () => {
+  /* 스타일이 바뀌면 기존 이미지 초기화 */
+  const handleStyleChange = (key) => {
+    setArtStyle(key);
+    setImageData(null);
+    setImgError(false);
+  };
+
+  /* ── 이미지 생성 ── */
+  const doGenerate = (seed = null) => {
     if (!text.trim()) return;
     setImgLoading(true);
     setImgError(false);
-
-    const result = generateDiaryImageUrl(text, mood);
+    const result = generateDiaryImageUrl(text, mood, weather, artStyle, seed);
     setImageData(result);
   };
 
-  const handleImgLoad  = () => setImgLoading(false);
-  const handleImgError = () => { setImgLoading(false); setImgError(true); };
+  const handleGenerate    = () => doGenerate();
+  const handleRegenerate  = () => doGenerate();          // 새 seed 자동 생성
+  const handleImgLoad     = () => setImgLoading(false);
+  const handleImgError    = () => { setImgLoading(false); setImgError(true); };
 
-  const handleRegenerate = () => {
-    setImgLoading(true);
-    setImgError(false);
-    const result = generateDiaryImageUrl(text, mood);
-    setImageData(result);
-  };
-
-  /* ---------- 저장 ---------- */
-  const handleSave = async () => {
+  /* ── 저장 ── */
+  const handleSave = () => {
     if (!text.trim() || saving || saved) return;
     setSaving(true);
 
@@ -67,6 +70,7 @@ export default function WritePage({ onNavigate, onSaved }) {
       text:        text.trim(),
       mood,
       weather,
+      artStyle,
       date,
       imageUrl:    imageData?.url    || null,
       imagePrompt: imageData?.prompt || null,
@@ -81,12 +85,12 @@ export default function WritePage({ onNavigate, onSaved }) {
     }, 900);
   };
 
-  const hasText    = text.trim().length > 0;
-  const hasImage   = !!imageData?.url;
-  const btnPhase   = saved ? 'saved' : (hasImage ? 'save' : 'generate');
+  const hasText  = text.trim().length > 0;
+  const hasImage = !!(imageData?.url);
+  const btnPhase = saved ? 'saved' : (hasImage ? 'save' : 'generate');
+  const styleObj = ART_STYLE_MAP[artStyle];
 
   return (
-    /* 하단 버튼 공간 확보 */
     <div className="max-w-[430px] mx-auto px-4 pb-28 pt-4 space-y-4 animate-fade-in-up">
 
       {/* ① 날짜 선택 카드 */}
@@ -101,7 +105,6 @@ export default function WritePage({ onNavigate, onSaved }) {
           </span>
         </div>
         <ChevronDown size={18} color="#888" />
-        {/* 숨겨진 네이티브 날짜 입력 */}
         <input
           ref={dateInputRef}
           type="date"
@@ -135,7 +138,10 @@ export default function WritePage({ onNavigate, onSaved }) {
       {/* ③ 기분 */}
       <MoodPicker selected={mood} onChange={setMood} />
 
-      {/* ④ 오늘 있었던 일 */}
+      {/* ④ 그림 스타일 ← NEW */}
+      <ArtStylePicker selected={artStyle} onChange={handleStyleChange} />
+
+      {/* ⑤ 오늘 있었던 일 */}
       <div>
         <p className="section-label">오늘 있었던 일</p>
         <div className="card overflow-hidden diary-lines">
@@ -155,33 +161,36 @@ export default function WritePage({ onNavigate, onSaved }) {
         </div>
       </div>
 
-      {/* ⑤ 미리보기 영역 */}
+      {/* ⑥ AI 그림 미리보기 */}
       <div>
         <p className="section-label">AI 그림 미리보기</p>
-        <div
-          className="card overflow-hidden"
-          style={{ minHeight: 180 }}
-        >
-          {imgLoading && imageData?.url ? (
-            /* 로딩 */
+        <div className="card overflow-hidden" style={{ minHeight: 180 }}>
+          {imgLoading ? (
             <div className="relative w-full aspect-square max-w-[260px] mx-auto my-4">
               <div className="shimmer absolute inset-0 rounded-xl" />
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                 <Sparkles size={28} className="spin-slow" style={{ color: '#FFB800' }} />
-                <p className="text-sm font-medium" style={{ color: '#888' }}>AI가 그림 그리는 중...</p>
+                <p className="text-sm font-medium" style={{ color: '#888' }}>
+                  {styleObj?.emoji} {styleObj?.label} 스타일로 그리는 중...
+                </p>
               </div>
             </div>
           ) : hasImage && !imgError ? (
-            /* 이미지 */
             <div className="relative">
               <img
                 src={imageData.url}
                 alt="AI 생성 그림"
                 className="w-full max-w-[260px] mx-auto block rounded-xl my-4 animate-fade-in-up"
-                style={{ display: 'block' }}
                 onLoad={handleImgLoad}
                 onError={handleImgError}
               />
+              {/* 스타일 배지 */}
+              <div
+                className="absolute top-6 left-4 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                style={{ background: 'rgba(255,255,255,0.88)', color: '#FFB800' }}
+              >
+                {styleObj?.emoji} {styleObj?.label}
+              </div>
               <button
                 onClick={handleRegenerate}
                 className="absolute top-6 right-4 w-8 h-8 bg-white/90 rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
@@ -191,7 +200,6 @@ export default function WritePage({ onNavigate, onSaved }) {
               </button>
             </div>
           ) : imgError ? (
-            /* 에러 */
             <div className="flex flex-col items-center justify-center py-10 gap-2">
               <span className="text-3xl">😢</span>
               <p className="text-sm" style={{ color: '#888' }}>그림 생성에 실패했어요</p>
@@ -204,11 +212,10 @@ export default function WritePage({ onNavigate, onSaved }) {
               </button>
             </div>
           ) : (
-            /* 플레이스홀더 */
             <div className="flex flex-col items-center justify-center py-10 gap-2">
-              <span className="text-4xl opacity-40">🎨</span>
+              <span className="text-4xl opacity-40">{styleObj?.emoji || '🎨'}</span>
               <p className="text-sm text-center" style={{ color: '#aaa' }}>
-                기록을 마치면<br />그림을 생성할 수 있어요
+                기록을 마치면<br />{styleObj?.label} 스타일로 그려드려요
               </p>
             </div>
           )}
@@ -216,13 +223,13 @@ export default function WritePage({ onNavigate, onSaved }) {
       </div>
 
       {/* 그림 없이 저장 안내 */}
-      {hasText && !hasImage && (
+      {hasText && !hasImage && !imgLoading && (
         <p className="text-center text-xs" style={{ color: '#aaa' }}>
           💡 그림 없이도 저장할 수 있어요
         </p>
       )}
 
-      {/* ⑥ 하단 고정 CTA 버튼 */}
+      {/* ⑦ 하단 고정 CTA */}
       <div
         className="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3"
         style={{ background: 'linear-gradient(to top, #FFF8F0 70%, transparent)', zIndex: 40 }}
@@ -234,11 +241,7 @@ export default function WritePage({ onNavigate, onSaved }) {
             </button>
           ) : btnPhase === 'save' ? (
             <>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="btn-primary"
-              >
+              <button onClick={handleSave} disabled={saving} className="btn-primary">
                 <Save size={16} />
                 {saving ? '저장 중...' : '그림일기 저장하기'}
               </button>
@@ -258,7 +261,9 @@ export default function WritePage({ onNavigate, onSaved }) {
               className="btn-primary"
             >
               <Sparkles size={16} />
-              {imgLoading ? 'AI 그림 그리는 중...' : '✨ AI 그림 만들기'}
+              {imgLoading
+                ? `${styleObj?.emoji} ${styleObj?.label}로 그리는 중...`
+                : `✨ ${styleObj?.emoji} ${styleObj?.label} 스타일로 AI 그림 만들기`}
             </button>
           )}
         </div>
