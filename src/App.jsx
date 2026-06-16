@@ -4,32 +4,20 @@ import WritePage from './pages/WritePage';
 import GalleryPage from './pages/GalleryPage';
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('write');
+  const [page, setPage]       = useState('write');
   const [galleryKey, setGalleryKey] = useState(0);
 
-  const navigate = (page) => setCurrentPage(page);
-
-  const handleSaved = () => {
-    setGalleryKey(k => k + 1);
-  };
+  const navigate = (p) => setPage(p);
+  const handleSaved = () => setGalleryKey(k => k + 1);
 
   return (
-    <div className="min-h-screen bg-amber-50">
-      <Header currentPage={currentPage} onNavigate={navigate} />
-
+    <div style={{ minHeight: '100dvh', background: '#FFF8F0' }}>
+      <Header currentPage={page} onNavigate={navigate} />
       <main>
-        {currentPage === 'write' ? (
-          <WritePage
-            onNavigate={navigate}
-            onSaved={handleSaved}
-          />
-        ) : (
-          <GalleryPage
-            key={galleryKey}
-            onNavigate={navigate}
-            refreshKey={galleryKey}
-          />
-        )}
+        {page === 'write'
+          ? <WritePage onNavigate={navigate} onSaved={handleSaved} />
+          : <GalleryPage key={galleryKey} onNavigate={navigate} />
+        }
       </main>
     </div>
   );

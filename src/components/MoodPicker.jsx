@@ -1,32 +1,33 @@
-const moods = [
-  { key: 'happy', emoji: '😊', label: '행복' },
-  { key: 'excited', emoji: '🤩', label: '신남' },
-  { key: 'calm', emoji: '😌', label: '평온' },
-  { key: 'sad', emoji: '😢', label: '슬픔' },
-  { key: 'angry', emoji: '😤', label: '화남' },
-  { key: 'neutral', emoji: '😐', label: '보통' },
+const MOODS = [
+  { key: 'happy',   emoji: '😊', label: '행복해요' },
+  { key: 'excited', emoji: '🎉', label: '신나요' },
+  { key: 'calm',    emoji: '😌', label: '평온해요' },
+  { key: 'sad',     emoji: '😢', label: '슬퍼요' },
+  { key: 'angry',   emoji: '😠', label: '화나요' },
+  { key: 'neutral', emoji: '😐', label: '보통이에요' },
 ];
 
 export default function MoodPicker({ selected, onChange }) {
   return (
     <div>
-      <p className="text-xs font-medium text-amber-700 mb-2">오늘의 기분</p>
-      <div className="flex gap-2 flex-wrap">
-        {moods.map((mood) => (
+      <p className="section-label">지금 내 기분은?</p>
+      {/* 3×2 그리드 */}
+      <div className="grid grid-cols-3 gap-2">
+        {MOODS.map((m) => (
           <button
-            key={mood.key}
-            onClick={() => onChange(mood.key)}
-            className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl border-2 transition-all active:scale-95 ${
-              selected === mood.key
-                ? 'border-amber-400 bg-amber-50 shadow-sm scale-105'
-                : 'border-amber-100 bg-white hover:border-amber-200'
-            }`}
+            key={m.key}
+            onClick={() => onChange(m.key)}
+            className={`select-card flex flex-col items-center gap-1 py-3 px-2 ${selected === m.key ? 'selected' : ''}`}
           >
-            <span className="text-xl">{mood.emoji}</span>
-            <span className="text-[10px] text-amber-700 font-medium">{mood.label}</span>
+            <span className="text-2xl">{m.emoji}</span>
+            <span className="text-[11px] font-medium" style={{ color: selected === m.key ? '#FFB800' : '#888' }}>
+              {m.label}
+            </span>
           </button>
         ))}
       </div>
     </div>
   );
 }
+
+export { MOODS };

@@ -1,5 +1,5 @@
 // Pollinations.ai 이미지 생성 유틸리티
-// 무료 API, API 키 불필요
+// 무료 API, API 키 불필요 — https://image.pollinations.ai
 
 const BASE_URL = 'https://image.pollinations.ai/prompt';
 
@@ -71,26 +71,26 @@ export function translateKorean(text) {
   return result;
 }
 
-// Pollinations.ai URL 생성
+// Pollinations.ai URL 생성 (nologo 파라미터 제거 — 현재 유료)
 export function getImageUrl(prompt, options = {}) {
   const {
     width = 512,
     height = 512,
-    seed = Math.floor(Math.random() * 999999),
+    seed,
     model = 'flux',
-    nologo = true,
-    enhance = false,
   } = options;
 
   const encodedPrompt = encodeURIComponent(prompt);
   const params = new URLSearchParams({
     width: width.toString(),
     height: height.toString(),
-    seed: seed.toString(),
     model,
-    nologo: nologo.toString(),
-    enhance: enhance.toString(),
   });
+
+  // seed가 있을 때만 추가
+  if (seed !== undefined && seed !== null) {
+    params.set('seed', seed.toString());
+  }
 
   return `${BASE_URL}/${encodedPrompt}?${params.toString()}`;
 }
