@@ -1,0 +1,21 @@
+{
+  "name": "AI 그림일기",
+  "short_name": "그림일기",
+  "description": "일기를 쓰면 AI가 귀여운 그림을 그려주는 그림일기 앱",
+  "start_url": "/ai-pollinationsai-api-toss-in/",
+  "scope": "/ai-pollinationsai-api-toss-in/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fdf8f0",
+  "theme_color": "#fbbf24",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["lifestyle", "productivity"],
+  "lang": "ko-KR"
+}
