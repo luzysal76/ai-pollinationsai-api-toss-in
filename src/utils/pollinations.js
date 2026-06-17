@@ -110,9 +110,10 @@ export function buildPrompt(diaryText, { mood = 'neutral', weather = 'sunny', ar
   const moodKw    = MOOD_KEYWORDS[mood]    || MOOD_KEYWORDS.neutral;
   const weatherKw = WEATHER_KEYWORDS[weather] || WEATHER_KEYWORDS.sunny;
 
-  // 일기 내용 전처리 (한→영, 200자 제한, 특수문자 제거)
+  // 일기 내용 전처리 (한→영, 100자 제한, 특수문자 제거)
+  // URL이 너무 길면 서버 차단 가능 → 100자로 제한 (~1,200자 이내 유지)
   const cleanText = translateKorean(diaryText)
-    .slice(0, 200)
+    .slice(0, 100)
     .replace(/[^a-zA-Z0-9가-힣\s.,]/g, ' ')
     .trim();
 

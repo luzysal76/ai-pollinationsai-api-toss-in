@@ -1,11 +1,12 @@
-import { useState, useRef } from 'react';
-import { ChevronDown, Sparkles, Save, RefreshCw } from 'lucide-react';
+import { useState, useRef, useCallback } from 'react';
+import { ChevronDown, Sparkles, Save, RefreshCw, Mic, MicOff } from 'lucide-react';
 import MoodPicker from '../components/MoodPicker';
 import ArtStylePicker from '../components/ArtStylePicker';
 import GeneratingOverlay from '../components/GeneratingOverlay';
 import { saveDiary } from '../utils/storage';
 import { saveImageBlob } from '../utils/db';
 import { generateDiaryImageUrl, DEFAULT_STYLE, ART_STYLE_MAP } from '../utils/pollinations';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 const WEATHER = [
   { key: 'sunny',  emoji: '☀️',  label: '맑음' },
@@ -34,58 +35,106 @@ export default function WritePage({ onNavigate, onSaved }) {
   const [text, setText]         = useState('');
 
   /* ── 이미지 상태 ── */
-  const [imageData, setImageData] = useState(null);
-  // imageData: { blobUrl, blob, originalUrl, prompt, seed }
-  const [generating, setGenerating] = useState(false);
-  const [imgError,   setImgError]   = useState(false);
+  const [imageData,   setImageData]   = useState(null);
+  const [generating,  setGenerating]  = useState(false);
+  const [imgLoading,  setImgLoading]  = useState(false); // fallback URL 로딩 중
+  const [imgError,    setImgError]    = useState(false);
 
   /* ── 저장 상태 ── */
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
 
-  const dateInputRef = useRef(null);
-  const abortRef     = useRef(null);   // AbortController
+  /* ── 음성 인식 ── */
+  const [interimText, setInterimText] = useState('');
+
+  const handleSpeechResult = useCallback(({ final, interim }) => {
+    if (final) {
+      setText(prev => (prev + (prev ? ' ' : '') + final).slice(0, MAX_TXT));
+      setInterimText('');
+    } else {
+      setInterimText(interim);
+    }
+  }, []);
+
+  const { isListening, isSupported, toggleListening } = useSpeechRecognition({
+    onResult: handleSpeechResult,
+    onEnd:    () => setInterimText(''),
+  });
+
+  const dateInputRef    = useRef(null);
+  const abortRef        = useRef(null);   // AbortController
+  const abortReasonRef  = useRef(null);   // 'user' | 'timeout' | null
+
+  /* ── 모든 이미지 상태 초기화 ── */
+  const resetImageState = () => {
+    if (imageData?.blobUrl) URL.revokeObjectURL(imageData.blobUrl);
+    setImageData(null);
+    setImgError(false);
+    setImgLoading(false);
+    abortReasonRef.current = null;
+  };
 
   /* ── 스타일 변경 시 이미지 초기화 ── */
   const handleStyleChange = (key) => {
     setArtStyle(key);
-    if (imageData?.blobUrl) URL.revokeObjectURL(imageData.blobUrl);
-    setImageData(null);
-    setImgError(false);
+    resetImageState();
   };
 
-  /* ── AI 이미지 생성 (fetch → Blob) ── */
+  /* ── AI 이미지 생성 ── */
   const doGenerate = async () => {
     if (!text.trim() || generating) return;
 
-    // 이전 blob URL 해제
-    if (imageData?.blobUrl) URL.revokeObjectURL(imageData.blobUrl);
-    setImageData(null);
-    setImgError(false);
+    resetImageState();
 
     const ctrl = new AbortController();
-    abortRef.current = ctrl;
+    abortRef.current       = ctrl;
+    abortReasonRef.current = null;
     setGenerating(true);
 
     const { url, prompt, seed } = generateDiaryImageUrl(text, mood, weather, artStyle);
 
+    // 60초 타임아웃
+    const timeoutId = setTimeout(() => {
+      abortReasonRef.current = 'timeout';
+      ctrl.abort();
+    }, 60_000);
+
     try {
-      const resp = await fetch(url, { signal: ctrl.signal });
+      const resp = await fetch(url, { signal: ctrl.signal, mode: 'cors' });
+      clearTimeout(timeoutId);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const blob    = await resp.blob();
       const blobUrl = URL.createObjectURL(blob);
-
+      // Blob 성공: IndexedDB 저장 가능
       setImageData({ blobUrl, blob, originalUrl: url, prompt, seed });
-      setGenerating(false);
+
     } catch (err) {
+      clearTimeout(timeoutId);
+
+      if (err.name === 'AbortError' && abortReasonRef.current === 'user') {
+        // 사용자가 직접 취소 → 상태 변경 없이 종료
+        return;
+      }
+
+      // 타임아웃 또는 CORS/네트워크 오류 → URL 직접 사용 폴백
+      console.warn('[그림일기] fetch 실패 → URL 직접 폴백', {
+        reason:    abortReasonRef.current || err.name,
+        message:   err.message,
+        urlLength: url.length,
+      });
+      setImageData({ blobUrl: null, blob: null, originalUrl: url, prompt, seed });
+      setImgLoading(true); // img onLoad/onError 전까지 스피너 표시
+    } finally {
       setGenerating(false);
-      if (err.name !== 'AbortError') setImgError(true);
-      // AbortError = 사용자 취소 → 조용히 종료
+      abortReasonRef.current = null;
     }
   };
 
-  /* 취소 */
-  const handleCancel = () => abortRef.current?.abort();
+  /* ── 취소 ── */
+  const handleCancel = () => {
+    abortReasonRef.current = 'user';
+    abortRef.current?.abort();
+  };
 
   /* ── 저장 ── */
   const handleSave = async () => {
@@ -96,17 +145,14 @@ export default function WritePage({ onNavigate, onSaved }) {
       title:       formatDateDisplay(date),
       text:        text.trim(),
       mood, weather, artStyle, date,
-      imageUrl:    imageData?.originalUrl || null,   // Pollinations URL (내보내기 참조용)
+      imageUrl:    imageData?.originalUrl || null,
       imagePrompt: imageData?.prompt      || null,
       imageSeed:   imageData?.seed        || null,
     });
 
-    // Blob → IndexedDB
     if (imageData?.blob) {
       await saveImageBlob(entry.id, imageData.blob).catch(() => {});
     }
-
-    // blobUrl 해제 (저장 완료 후 불필요)
     if (imageData?.blobUrl) URL.revokeObjectURL(imageData.blobUrl);
 
     setSaved(true);
@@ -114,19 +160,16 @@ export default function WritePage({ onNavigate, onSaved }) {
     setTimeout(() => { onSaved?.(); onNavigate('gallery'); }, 900);
   };
 
-  const hasText  = text.trim().length > 0;
-  const hasImage = !!imageData?.blobUrl;
-  const btnPhase = saved ? 'saved' : hasImage ? 'save' : 'generate';
-  const styleObj = ART_STYLE_MAP[artStyle];
+  const hasText       = text.trim().length > 0;
+  const hasImage      = !!(imageData?.blobUrl || imageData?.originalUrl);
+  const imgDisplaySrc = imageData?.blobUrl || imageData?.originalUrl || null;
+  const btnPhase      = saved ? 'saved' : hasImage ? 'save' : 'generate';
+  const styleObj      = ART_STYLE_MAP[artStyle];
 
   return (
     <>
-      {/* 생성 중 오버레이 */}
       {generating && (
-        <GeneratingOverlay
-          styleLabel={styleObj?.label}
-          onCancel={handleCancel}
-        />
+        <GeneratingOverlay styleLabel={styleObj?.label} onCancel={handleCancel} />
       )}
 
       <div className="max-w-[430px] mx-auto px-4 pb-28 pt-4 space-y-4 animate-fade-in-up">
@@ -187,23 +230,62 @@ export default function WritePage({ onNavigate, onSaved }) {
         {/* ⑤ 일기 텍스트 */}
         <div>
           <p className="section-label" id="diary-label">오늘 있었던 일</p>
-          <div className="card overflow-hidden diary-lines">
+          <div className="card overflow-hidden diary-lines relative">
             <textarea
               value={text}
               onChange={e => setText(e.target.value.slice(0, MAX_TXT))}
-              placeholder="여기에 오늘의 소중한 순간을 기록해 보세요..."
+              placeholder={isListening ? '말씀해 주세요...' : '여기에 오늘의 소중한 순간을 기록해 보세요...'}
               rows={6}
               aria-label="오늘 있었던 일"
               aria-describedby="diary-label"
               className="w-full px-4 pt-4 pb-3 bg-transparent text-[14px] focus:outline-none resize-none placeholder-[#C8C0B0]"
-              style={{ lineHeight: '32px', color: '#2D2D2D' }}
+              style={{ lineHeight: '32px', color: '#2D2D2D', paddingRight: isSupported ? '52px' : undefined }}
             />
-            <div className="px-4 pb-3 text-right">
-              <span className="text-xs" style={{ color: text.length >= MAX_TXT ? '#ef4444' : '#aaa' }}
-                aria-live="polite" aria-label={`${text.length}자 / ${MAX_TXT}자 입력됨`}>
+            {/* 중간 인식 결과 */}
+            {interimText ? (
+              <p
+                className="px-4 text-[13px] italic"
+                style={{ color: '#C8B89A', marginTop: '-6px' }}
+                aria-live="polite"
+              >
+                {interimText}
+              </p>
+            ) : null}
+            <div className="px-4 pb-3 flex items-center justify-between">
+              {isListening ? (
+                <span className="text-xs flex items-center gap-1" style={{ color: '#FF4444' }}>
+                  <span className="animate-pulse" aria-hidden="true">●</span> 듣고 있어요...
+                </span>
+              ) : <span />}
+              <span
+                className="text-xs"
+                style={{ color: text.length >= MAX_TXT ? '#ef4444' : '#aaa' }}
+                aria-live="polite"
+                aria-label={`${text.length}자 / ${MAX_TXT}자 입력됨`}
+              >
                 {text.length} / {MAX_TXT}
               </span>
             </div>
+
+            {/* 🎤 음성 입력 버튼 */}
+            {isSupported && (
+              <button
+                onClick={toggleListening}
+                aria-label={isListening ? '음성 입력 중지' : '음성으로 입력'}
+                aria-pressed={isListening}
+                className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90"
+                style={{
+                  background:  isListening ? '#FF4444' : '#FFB800',
+                  boxShadow:   isListening
+                    ? '0 0 0 4px rgba(255,68,68,0.25), 0 2px 6px rgba(0,0,0,0.12)'
+                    : '0 2px 6px rgba(0,0,0,0.12)',
+                }}
+              >
+                {isListening
+                  ? <MicOff size={16} color="white" aria-hidden="true" />
+                  : <Mic    size={16} color="white" aria-hidden="true" />}
+              </button>
+            )}
           </div>
         </div>
 
@@ -213,26 +295,47 @@ export default function WritePage({ onNavigate, onSaved }) {
           <div className="card overflow-hidden" style={{ minHeight: 180 }}>
             {hasImage && !imgError ? (
               <div className="relative">
+                {/* fallback URL 로딩 중 스피너 */}
+                {imgLoading && (
+                  <div className="flex flex-col items-center justify-center py-10 gap-3" aria-live="polite">
+                    <div
+                      className="w-10 h-10 rounded-full"
+                      style={{
+                        border: '3px solid #F0E8D8',
+                        borderTopColor: '#FFB800',
+                        animation: 'overlay-spin 1s linear infinite',
+                      }}
+                      aria-hidden="true"
+                    />
+                    <p className="text-sm" style={{ color: '#aaa' }}>그림을 불러오는 중...</p>
+                  </div>
+                )}
                 <img
-                  src={imageData.blobUrl}
+                  src={imgDisplaySrc}
                   alt={`${styleObj?.label || 'AI'} 스타일로 생성된 그림일기 그림`}
-                  className="w-full max-w-[260px] mx-auto block rounded-xl my-4 animate-fade-in-up"
+                  className={`w-full max-w-[260px] mx-auto block rounded-xl my-4 animate-fade-in-up ${imgLoading ? 'hidden' : ''}`}
+                  onLoad={() => setImgLoading(false)}
+                  onError={() => { setImgLoading(false); setImgError(true); }}
                 />
-                <div
-                  className="absolute top-6 left-4 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                  style={{ background: 'rgba(255,255,255,0.88)', color: '#FFB800' }}
-                  aria-hidden="true"
-                >
-                  {styleObj?.emoji} {styleObj?.label}
-                </div>
-                <button
-                  onClick={doGenerate}
-                  disabled={generating}
-                  aria-label="다른 그림으로 다시 생성"
-                  className="absolute top-6 right-4 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
-                >
-                  <RefreshCw size={15} style={{ color: '#FFB800' }} />
-                </button>
+                {!imgLoading && (
+                  <>
+                    <div
+                      className="absolute top-6 left-4 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      style={{ background: 'rgba(255,255,255,0.88)', color: '#FFB800' }}
+                      aria-hidden="true"
+                    >
+                      {styleObj?.emoji} {styleObj?.label}
+                    </div>
+                    <button
+                      onClick={doGenerate}
+                      disabled={generating}
+                      aria-label="다른 그림으로 다시 생성"
+                      className="absolute top-6 right-4 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform"
+                    >
+                      <RefreshCw size={15} style={{ color: '#FFB800' }} />
+                    </button>
+                  </>
+                )}
               </div>
             ) : imgError ? (
               <div className="flex flex-col items-center justify-center py-10 gap-2">

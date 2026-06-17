@@ -1,0 +1,18 @@
+{
+  "appId": "io.github.luzysal76.aidiary",
+  "appName": "AI 그림일기",
+  "webDir": "dist-android",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "image.pollinations.ai",
+      "*.pollinations.ai",
+      "fonts.googleapis.com",
+      "fonts.gstatic.com"
+    ]
+  },
+  "android": {
+    "minSdkVersion": 22,
+    "allowMixedContent": true
+  }
+}
