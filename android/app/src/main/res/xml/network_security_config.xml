@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Pollinations.ai 이미지 생성 API 명시적 허용 -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">pollinations.ai</domain>
+        <domain includeSubdomains="true">image.pollinations.ai</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- 기본: HTTPS만 허용 -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
