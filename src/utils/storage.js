@@ -1,5 +1,7 @@
 // localStorage 기반 일기 메타데이터 저장소
 // 이미지 Blob은 src/utils/db.js (IndexedDB)에서 별도 관리
+// entry.decoration은 optional 필드(꾸미기 설정: 배경/프레임/폰트/스티커) — 없으면
+// src/utils/decorations.js의 getDecoration()이 DEFAULT_DECORATION으로 폴백함
 const KEY = 'ai_picture_diary_entries';
 
 export function getDiaries() {

@@ -3,9 +3,11 @@ import { ChevronDown, Sparkles, Save, RefreshCw, Mic, MicOff } from 'lucide-reac
 import MoodPicker from '../components/MoodPicker';
 import ArtStylePicker from '../components/ArtStylePicker';
 import GeneratingOverlay from '../components/GeneratingOverlay';
+import DecorationPicker from '../components/DecorationPicker';
 import { saveDiary } from '../utils/storage';
 import { saveImageBlob } from '../utils/db';
 import { generateDiaryImageUrl, DEFAULT_STYLE, ART_STYLE_MAP } from '../utils/pollinations';
+import { DEFAULT_DECORATION } from '../utils/decorations';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 const WEATHER = [
@@ -33,6 +35,7 @@ export default function WritePage({ onNavigate, onSaved }) {
   const [mood, setMood]         = useState('happy');
   const [artStyle, setArtStyle] = useState(DEFAULT_STYLE);
   const [text, setText]         = useState('');
+  const [decoration, setDecoration] = useState(DEFAULT_DECORATION);
 
   /* ── 이미지 상태 ── */
   const [imageData,   setImageData]   = useState(null);
@@ -148,6 +151,7 @@ export default function WritePage({ onNavigate, onSaved }) {
       imageUrl:    imageData?.originalUrl || null,
       imagePrompt: imageData?.prompt      || null,
       imageSeed:   imageData?.seed        || null,
+      decoration,
     });
 
     if (imageData?.blob) {
@@ -172,7 +176,7 @@ export default function WritePage({ onNavigate, onSaved }) {
         <GeneratingOverlay styleLabel={styleObj?.label} onCancel={handleCancel} />
       )}
 
-      <div className="max-w-[430px] mx-auto px-4 pb-28 pt-4 space-y-4 animate-fade-in-up">
+      <div className="max-w-[430px] mx-auto px-4 pb-32 pt-4 space-y-4 animate-fade-in-up">
 
         {/* ① 날짜 카드 */}
         <div
@@ -366,7 +370,17 @@ export default function WritePage({ onNavigate, onSaved }) {
           </p>
         )}
 
-        {/* ⑦ 하단 고정 CTA */}
+        {/* ⑦ 꾸미기 (배경/프레임/폰트/스티커) */}
+        {hasText && (
+          <DecorationPicker
+            value={decoration}
+            onChange={setDecoration}
+            text={text}
+            imgSrc={imgDisplaySrc}
+          />
+        )}
+
+        {/* ⑧ 하단 고정 CTA */}
         <div
           className="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3"
           style={{ background: 'linear-gradient(to top, #FFF8F0 70%, transparent)', zIndex: 40 }}

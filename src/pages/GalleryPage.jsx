@@ -3,6 +3,8 @@ import { Trash2, X, Sparkles, Calendar, Plus, Share2 } from 'lucide-react';
 import { getDiaries, deleteDiary } from '../utils/storage';
 import { deleteImageBlob, resolveImageUrl } from '../utils/db';
 import { ART_STYLE_MAP } from '../utils/pollinations';
+import { getDecoration, getPaletteStyle, getFontFamily } from '../utils/decorations';
+import DecorationPreview from '../components/decoration/DecorationPreview';
 
 const MOOD_EMOJI = {
   happy: '😊', excited: '🎉', calm: '😌',
@@ -48,6 +50,8 @@ function DiaryCard({ diary, onClick }) {
   const [imgErr, setImgErr]   = useState(false);
   const blobRef               = useRef(null);      // 해제용
   const styleObj              = ART_STYLE_MAP[diary.artStyle];
+  const decoration             = getDecoration(diary);
+  const hasStickers            = decoration.stickers.length > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -71,8 +75,8 @@ function DiaryCard({ diary, onClick }) {
       aria-label={`${diary.title} 일기 보기`}
       style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)', minHeight: 48 }}
     >
-      {/* 썸네일 */}
-      <div className="w-full aspect-square relative overflow-hidden" style={{ background: '#FFF3D0' }}>
+      {/* 썸네일 (배경 팔레트 반영) */}
+      <div className="w-full aspect-square relative overflow-hidden" style={getPaletteStyle(decoration.paletteKey)}>
         {imgSrc && !imgErr ? (
           <img
             src={imgSrc}
@@ -95,6 +99,16 @@ function DiaryCard({ diary, onClick }) {
         >
           {WEATHER_EMOJI[diary.weather] || ''}{MOOD_EMOJI[diary.mood] || ''}
         </div>
+        {/* 꾸미기(스티커) 뱃지 */}
+        {hasStickers && (
+          <div
+            className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px]"
+            style={{ background: 'rgba(255,255,255,0.88)' }}
+            aria-label="스티커로 꾸며진 일기"
+          >
+            🎀
+          </div>
+        )}
       </div>
 
       {/* 텍스트 */}
@@ -126,6 +140,7 @@ function DiarySheet({ diary, onClose, onDelete }) {
   const blobRef  = useRef(null);
   const blobObjRef = useRef(null);  // Blob 원본 (File 공유용)
   const styleObj = ART_STYLE_MAP[diary.artStyle];
+  const decoration = getDecoration(diary);
 
   useEffect(() => {
     let cancelled = false;
@@ -253,15 +268,17 @@ function DiarySheet({ diary, onClose, onDelete }) {
         </div>
 
         <div className="p-5 space-y-4">
-          {/* AI 그림 */}
-          {imgSrc && !imgErr ? (
-            <div className="relative rounded-2xl overflow-hidden" style={{ border: '2px solid #F0E8D8' }}>
-              <img
-                src={imgSrc}
-                alt={`${diary.title} AI 그림`}
-                className="w-full max-h-72 object-cover block"
-                onError={() => setImgErr(true)}
-              />
+          {/* AI 그림 (배경 팔레트 + 프레임 + 스티커 반영) */}
+          <div className="relative">
+            <DecorationPreview
+              decoration={decoration}
+              imgSrc={imgSrc && !imgErr ? imgSrc : null}
+              editable={false}
+              imageAlt={`${diary.title} AI 그림`}
+              emptyLabel="그림이 없는 일기예요"
+              onImageError={() => setImgErr(true)}
+            />
+            {imgSrc && !imgErr && (
               <div
                 className="absolute top-2 left-2 rounded-full px-2 py-0.5 flex items-center gap-1"
                 style={{ background: 'rgba(255,255,255,0.88)' }}
@@ -272,17 +289,8 @@ function DiarySheet({ diary, onClose, onDelete }) {
                   {styleObj ? `${styleObj.emoji} ${styleObj.label}` : 'AI 그림'}
                 </span>
               </div>
-            </div>
-          ) : (
-            <div
-              className="rounded-2xl flex flex-col items-center justify-center py-10 gap-2"
-              style={{ background: '#F5EDD8', border: '2px solid #F0E8D8' }}
-              aria-label="그림이 없는 일기"
-            >
-              <span className="text-4xl opacity-50" aria-hidden="true">📝</span>
-              <p className="text-xs" style={{ color: '#aaa' }}>그림이 없는 일기예요</p>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* 공유 버튼 */}
           <button
@@ -297,7 +305,10 @@ function DiarySheet({ diary, onClose, onDelete }) {
 
           {/* 일기 본문 */}
           <div className="rounded-2xl p-4 diary-lines" style={{ border: '2px solid #F0E8D8' }}>
-            <p className="text-sm leading-8 whitespace-pre-wrap" style={{ color: '#2D2D2D' }}>
+            <p
+              className="text-sm leading-8 whitespace-pre-wrap"
+              style={{ color: '#2D2D2D', fontFamily: getFontFamily(decoration.fontKey) }}
+            >
               {diary.text}
             </p>
           </div>
